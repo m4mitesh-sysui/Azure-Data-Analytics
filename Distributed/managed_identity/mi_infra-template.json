@@ -1,0 +1,32 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "eastus2"
+        }
+    },
+    "variables": {
+        "managedIdentityName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-mi')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "apiVersion": "2023-01-31",
+            "name": "[variables('managedIdentityName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            }
+        }
+    ]
+}

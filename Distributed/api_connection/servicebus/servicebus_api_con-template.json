@@ -1,0 +1,52 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "servicebus_connectionstring": {
+            "type": "securestring"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        }
+    },
+    "variables": {
+        "servivebusConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-sbns-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('servivebusConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "V1",
+            "properties": {
+                "displayName": "[variables('servivebusConnectionName')]",
+                "ParameterValues": {
+                    "connectionstring": "[parameters('servicebus_connectionstring')]"
+                },
+                "customParameterValues": {},
+                "api": {
+                    "name": "servicebus",
+                    "displayName": "Service Bus",
+                    "description": "Connect to Azure Service Bus to send and receive messages. You can perform actions such as send to queue, send to topic, receive from queue, receive from subscription, etc.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/servicebus')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

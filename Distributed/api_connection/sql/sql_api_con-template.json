@@ -1,0 +1,72 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "sql_username": {
+            "type": "securestring"
+        },
+        "sql_password": {
+            "type": "securestring"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "server_name": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "sqlConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-sql-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('sqlConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "V1",
+            "properties": {
+                "displayName": "[variables('sqlConnectionName')]",
+                "customParameterValues": {},
+                "parameterValueSet": {
+                    "name": "sqlAuthentication",
+                    "values": {
+                        "server": {
+                            "value": "[parameters('server_name')]"
+                        },
+                        "database": {
+                            "value": "[concat('mit', parameters('env'), 'sqldb')]"
+                        },
+                        "username": {
+                            "value": "[parameters('sql_username')]"
+                        },
+                        "password": {
+                            "value": "[parameters('sql_password')]"
+                        }
+                    }
+                },
+                "api": {
+                    "name": "sql",
+                    "displayName": "SQL Server",
+                    "description": "Microsoft SQL Server is a relational database management system developed by Microsoft. Connect to SQL Server to manage data. You can perform various actions such as create, update, get, and delete on rows in a table.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/sql')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

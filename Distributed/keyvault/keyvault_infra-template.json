@@ -1,0 +1,83 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "objectid": {
+            "type": "array"
+        },
+        "location": {
+            "type": "string"
+        },
+        "tenantId": {
+            "type": "secureString"
+        },
+        "skuName": {
+            "type": "string"
+        },
+        "skuFamily": {
+            "type": "secureString"
+        }
+    },
+    "variables": {
+        "keyVaultName": "[concat('hew-', parameters('env'), '-', parameters('platform'), '-keyvault')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2023-02-01",
+            "name": "[variables('keyVaultName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "properties": {
+                "sku": {
+                    "family": "[parameters('skuFamily')]",
+                    "name": "[parameters('skuName')]"
+                },
+                "tenantId": "[parameters('tenantId')]",
+                "copy": [
+                    {
+                        "name": "accessPolicies",
+                        "count": "[length(parameters('objectid'))]",
+                        "input": {
+                            "tenantId": "[parameters('tenantId')]",
+                            "objectId": "[parameters('objectid')[copyIndex('accessPolicies')]]",
+                            "permissions": {
+                                "keys": [
+                                    "Get",
+                                    "List"
+                                ],
+                                "secrets": [
+                                    "Get",
+                                    "List"
+                                ],
+                                "certificates": [
+                                    "Get",
+                                    "List"
+                                ]
+                            }
+                        }
+                    }
+                ],
+                "enabledForDeployment": true,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 90,
+                "enableRbacAuthorization": false,
+                "vaultUri": "[concat('https://', variables('keyVaultName'), '.vault.azure.net/')]",
+                "provisioningState": "Succeeded",
+                "publicNetworkAccess": "Enabled"
+            }
+        }
+    ]
+}

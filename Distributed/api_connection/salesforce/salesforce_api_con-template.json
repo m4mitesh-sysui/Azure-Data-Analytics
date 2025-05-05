@@ -1,0 +1,66 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "salesforce-url": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "salesforceApiVersion": {
+            "type": "string"
+        },
+        "includeQAPrefix": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "If includeQAPrefix is true, add the 'QA_' prefix to the 'LogicAppName' and the 'salesforceConnectionName' for the dev environment; otherwise, use the default concatenated name."
+            }
+        },
+        "kind": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "salesforceConnectionName": "[concat('mit-', toLower(parameters('env')), '-ade-', if(and(equals(parameters('env'), 'dev'), parameters('includeQAPrefix')), 'QA_', ''), 'sfdc-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('salesforceConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "displayName": "[variables('salesforceConnectionName')]",
+                "parameterValues": {
+                    "salesforceApiVersion": "[parameters('salesforceApiVersion')]",
+                    "token:LoginUri": "[parameters('salesforce-url')]",
+                    "privacySetting": "Organizational"
+                },
+                "api": {
+                    "name": "salesforce",
+                    "displayName": "Salesforce",
+                    "description": "The Salesforce Connector provides an API to work with Salesforce objects.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/salesforce')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,80 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "env-type": {
+            "type": "string",
+            "allowedValues": [
+                "prod",
+                "nonprod"
+            ]
+        },
+        "platform": {
+            "type": "string"
+        },
+        "oracle-username": {
+            "type": "securestring"
+        },
+        "oracle-password": {
+            "type": "securestring"
+        },
+        "location": {
+            "type": "string"
+        },
+        "connectionGateway": {
+            "type": "securestring"
+        },
+        "servername": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "kind": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "OracleConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-oracle-con')]",
+        "GatewayName": "[concat('mit-', parameters('env-type'), '-', parameters('platform'), '-onpremdata-gateway')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('OracleConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "displayName": "[variables('OracleConnectionName')]",
+                "customParameterValues": {},
+                "ParameterValues": {
+                    "gateway": {
+                        "name": "[variables('GatewayName')]",
+                        "id": "[parameters('connectionGateway')]",
+                        "type": "Microsoft.Web/connectionGateways"
+                    },
+                    "username": "[parameters('oracle-username')]",
+                    "password": "[parameters('oracle-password')]",
+                    "server": "[parameters('servername')]",
+                    "authType": "basic"
+                },
+                "api": {
+                    "name": "oracle",
+                    "displayName": "Oracle Database",
+                    "description": "Oracle Database is a relational database management system developed by Oracle. Connect to on-premise Oracle Database to perform various actions such as create, update, get, and delete on rows in a table.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/oracle')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

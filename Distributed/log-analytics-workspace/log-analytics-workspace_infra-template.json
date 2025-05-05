@@ -1,0 +1,75 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "workspaceName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-log')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "apiVersion": "2021-12-01-preview",
+            "name": "[variables('workspaceName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/dataSources",
+            "apiVersion": "2020-08-01",
+            "name": "[format('{0}/{1}', variables('workspaceName'), 'WindowsEventsSystem')]",
+            "kind": "WindowsEvent",
+            "properties": {
+                "eventLogName": "System",
+                "eventTypes": [
+                    {
+                        "eventType": "Error"
+                    },
+                    {
+                        "eventType": "Warning"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces/dataSources",
+            "apiVersion": "2020-08-01",
+            "name": "[format('{0}/{1}', variables('workspaceName'), 'WindowsEventsApplication')]",
+            "kind": "WindowsEvent",
+            "properties": {
+                "eventLogName": "Application",
+                "eventTypes": [
+                    {
+                        "eventType": "Error"
+                    },
+                    {
+                        "eventType": "Warning"
+                    },
+                    {
+                        "eventType": "Information"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+            ]
+        }
+    ]
+}

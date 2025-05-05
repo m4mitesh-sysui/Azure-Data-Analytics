@@ -1,0 +1,55 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "skuType": {
+            "type": "string"
+        },
+        "kind": {
+            "type": "string"
+        },
+        "TlsVersion": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "eventGridName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-evtg')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.EventGrid/topics",
+            "apiVersion": "2023-12-15-preview",
+            "name": "[variables('eventGridName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "[parameters('skuType')]"
+            },
+            "kind": "[parameters('kind')]",
+            "identity": {
+                "type": "None"
+            },
+            "properties": {
+                "minimumTlsVersionAllowed": "[parameters('TlsVersion')]",
+                "inputSchema": "EventGridSchema",
+                "publicNetworkAccess": "Enabled",
+                "inboundIpRules": [],
+                "disableLocalAuth": false,
+                "dataResidencyBoundary": "WithinGeopair"
+            }
+        }
+    ]
+}

@@ -1,0 +1,55 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "acsemail-connectionstring": {
+            "type": "securestring"
+        },
+        "kind": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "acsEmailConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-acs-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('acsEmailConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "displayName": "[variables('acsEmailConnectionName')]",
+                "customParameterValues": {},
+                "parameterValues": {
+                    "api_key": "[parameters('acsemail-connectionstring')]"
+                },
+                "api": {
+                    "name": "acsemail",
+                    "displayName": "Azure Communication Services Email",
+                    "description": "Connector to send Email using the domains linked to the Azure Communication Services in your subscription.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/acsemail')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

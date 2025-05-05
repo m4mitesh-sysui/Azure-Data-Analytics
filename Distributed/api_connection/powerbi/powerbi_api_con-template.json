@@ -1,0 +1,55 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "AzureSPAccountName": {
+            "type": "string"
+        },
+        "kind": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "powerBiConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-powerbi-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('powerBiConnectionName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "displayName": "Utility Account",
+                "authenticatedUser": {
+                    "name": "[parameters('AzureSPAccountName')]"
+                },
+                "customParameterValues": {},
+                "api": {
+                    "name": "powerbi",
+                    "displayName": "Power BI",
+                    "description": "Power BI is a suite of business analytics tools to analyze data and share insights. Connect to get easy access to the data in your Power BI dashboards, reports and datasets.",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/powerbi')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

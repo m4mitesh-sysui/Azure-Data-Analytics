@@ -1,0 +1,45 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "envType": {
+            "type": "string",
+            "allowedValues": [
+                "prod",
+                "nonprod"
+            ]
+        },
+        "platform": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "secureString"
+        }
+    },
+    "variables": {
+        "communicationServicesName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-acs')]",
+        "acsEmailName": "[concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/mit-', parameters('env'), '-ade-rg/providers/Microsoft.Communication/emailServices/mit-', parameters('envType'), '-acs-email')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Communication/CommunicationServices",
+            "apiVersion": "2023-06-01-preview",
+            "name": "[variables('communicationServicesName')]",
+            "location": "global",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "properties": {
+                "dataLocation": "India",
+                "linkedDomains": [
+                    "[concat(variables('acsEmailName'), '/domains/AzureManagedDomain')]"
+                ]
+            }
+        }
+    ]
+}

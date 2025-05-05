@@ -1,0 +1,90 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "secureString"
+        },
+        "publisherEmail": {
+            "type": "string",
+            "minLength": 1
+        },
+        "publisherName": {
+            "type": "string",
+            "minLength": 1
+        },
+        "skuName": {
+            "type": "string"
+        },
+        "capacity": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "apiManagementName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-apim')]",
+        "resourceGroupName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-rg')]",
+        "appInsightsName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-appi')]",
+        "insightsComponentName": "[concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', variables('resourceGroupName'), '/providers/microsoft.insights/components/', variables('appInsightsName'))]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ApiManagement/service",
+            "apiVersion": "2023-05-01-preview",
+            "name": "[variables('apiManagementName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "[parameters('skuName')]",
+                "capacity": "[parameters('capacity')]"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "publisherEmail": "[parameters('publisherEmail')]",
+                "publisherName": "[parameters('publisherName')]",
+                "notificationSenderEmail": "apimgmt-noreply@mail.windowsazure.com",
+                "hostnameConfigurations": [
+                    {
+                        "type": "Proxy",
+                        "hostName": "[concat(variables('apiManagementName'), '.azure-api.net')]",
+                        "negotiateClientCertificate": false,
+                        "defaultSslBinding": true,
+                        "certificateSource": "BuiltIn"
+                    }
+                ],
+                "customProperties": {
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11": "true",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10": "false",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls11": "true",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls10": "false",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Ssl30": "false",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Protocols.Server.Http2": "true",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TripleDes168": "false",
+                    "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Ssl30": "false"
+                },
+                "virtualNetworkType": "None",
+                "disableGateway": false,
+                "apiVersionConstraint": {
+                    "minApiVersion": "2021-08-01"
+                },
+                "publicNetworkAccess": "Enabled",
+                "legacyPortalStatus": "Disabled",
+                "developerPortalStatus": "Enabled"
+            }
+        }
+    ]
+}
