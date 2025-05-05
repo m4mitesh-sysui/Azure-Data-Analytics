@@ -1,0 +1,108 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "string"
+        },
+        "mail_notifications": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "logicAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-send_expiry_report_status-logic')]",
+        "resourceGroupName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-rg')]",
+        "office365ConnectionName": "[concat('mit-', parameters('env'), '-api-office365-con')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[variables('logicAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('platform')]",
+                "environment": "[parameters('env')]"
+            },
+            "properties": {
+                "state": "Disabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_HTTP_request_is_received": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "method": "POST",
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "HtmlContent": {
+                                            "type": "string"
+                                        },
+                                        "ExecutionDate": {
+                                            "type": "string"
+                                        },
+                                        "NotificationSubject": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Send_an_email_(V2)": {
+                            "runAfter": {},
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "body": {
+                                    "To": "[parameters('mail_notifications')]",
+                                    "Subject": "@triggerBody()?['NotificationSubject']",
+                                    "Body": "<p class=\"editor-paragraph\">@{triggerBody()?['HtmlContent']}</p>",
+                                    "Importance": "Normal"
+                                },
+                                "path": "/v2/Mail"
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "office365": {
+                                "connectionId": "[concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/', variables('resourceGroupName'), '/providers/Microsoft.Web/connections/', variables('office365ConnectionName'))]",
+                                "connectionName": "[variables('office365ConnectionName')]",
+                                "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/office365')]"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
