@@ -1,0 +1,168 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "application": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "eastus2"
+        },
+        "kind": {
+            "type": "string"
+        },
+        "skuName": {
+            "type": "string"
+        },
+        "tier": {
+            "type": "string"
+        },
+        "TlsVersion": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "functionAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-java-func')]",
+        "aspFunAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-function-asp')]",
+        "storageAccountName": "[concat('mit', parameters('env'), parameters('platform'), 'funcappst')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('storageAccountName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('tier')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "defaultToOAuthAuthentication": true,
+                "minimumTlsVersion": "[parameters('TlsVersion')]"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2023-01-01",
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "containerDeleteRetentionPolicy": {
+                    "enabled": true,
+                    "days": 14
+                },
+                "deleteRetentionPolicy": {
+                    "allowPermanentDelete": false,
+                    "enabled": true,
+                    "days": 14
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices",
+            "apiVersion": "2023-01-01",
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "shareDeleteRetentionPolicy": {
+                    "enabled": true,
+                    "days": 14
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2020-06-01",
+            "name": "[variables('aspFunAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "Y1",
+                "tier": "Dynamic",
+                "size": "Y1",
+                "family": "Y",
+                "capacity": 0
+            },
+            "kind": "functionapp",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2022-09-01",
+            "name": "[variables('functionAppName')]",
+            "location": "[parameters('location')]",
+            "kind": "functionapp,linux",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                "[resourceId('Microsoft.Web/serverfarms', variables('aspFunAppName'))]"
+            ],
+            "properties": {
+                "serverFarmId": "[variables('aspFunAppName')]",
+                "siteConfig": {
+                    "linuxFxVersion": "Java|17",
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(variables('functionAppName'))]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "java"
+                        },
+                        {
+                            "name": "WEBSITE_ENABLE_SYNC_UPDATE_SITE",
+                            "value": "true"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

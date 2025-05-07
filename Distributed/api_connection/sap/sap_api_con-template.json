@@ -1,0 +1,84 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env" :{
+            "type": "string"
+        },
+        "application": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "serverHost": {
+            "type": "string"
+        },
+        "sap-username-sfdc": {
+            "type": "string"
+        },
+        "sap-password-sfdc": {
+            "type": "string"
+        },
+        "connectionGateways": {
+            "defaultValue": "/subscriptions//resourceGroups/mit-dev-ade-rg/providers/Microsoft.Web/connectionGateways/mit-ade-onprem-data-gateway",
+            "type": "string"
+        },
+        "subscriptionId": {
+            "type": "securestring"
+        },
+        "kind": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "sapConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-sap-con')]"
+    },
+    "resources": [       
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "[variables('sapConnectionName')]",
+            "location": "[parameters('location')]",
+            "kind": "[parameters('kind')]",
+              "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform":"[parameters('platform')]"
+            },
+            "properties": {
+                "displayName": "[concat('mit-sap-', parameters('env'), '-con')]",
+                "customParameterValues": {},
+                "parameterValues": {
+                    "gateway": {
+                        "name": "mit-ade-onprem-data-gateway",
+                        "id": "[parameters('connectionGateways')]",
+                        "type": "Microsoft.Web/connectionGateways"
+                    },
+                    "client": "001",
+                    "authType": "basic",
+                    "logonType": "ApplicationServer",
+                    "username": "[parameters('sap-username-sfdc')]",
+                    "password": "[parameters('sap-password-sfdc')]",
+                    "appServerHost": "[parameters('serverHost')]",
+                    "appServerService": "dv1ascs",
+                    "systemNumber": "01",
+                    "safeTyping": "false",
+                    "useSnc": "false",
+                    "sncSso": "On",
+                    "sncQop": "Authentication"
+                },
+                "nonSecretParameterValues": {},
+                "api": {
+                    "name": "sap",
+                    "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/sap')]",
+                    "type": "Microsoft.Web/locations/managedApis"
+                }
+            }
+        }
+    ]
+}

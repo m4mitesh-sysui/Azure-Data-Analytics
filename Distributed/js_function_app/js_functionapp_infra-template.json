@@ -1,0 +1,158 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "env": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string"
+        },
+        "kind": {
+            "type": "string"
+        },
+        "skuName": {
+            "type": "string"
+        },
+        "tier": {
+            "type": "string"
+        },
+        "TlsVersion": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "functionAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-js-func')]",
+        "aspFunnAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-function-asp')]",
+        "storageAccountName": "[concat('mit', parameters('env'), parameters('platform'), 'funcappst')]",
+        "appInsightsName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-appi')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2023-05-01",
+            "name": "[variables('storageAccountName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('tier')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "defaultToOAuthAuthentication": false,
+                "allowCrossTenantReplication": false,
+                "privateEndpointConnections": [],
+                "minimumTlsVersion": "[parameters('TlsVersion')]",
+                "allowBlobPublicAccess": false,
+                "allowSharedKeyAccess": true,
+                "networkAcls": {
+                    "bypass": "AzureServices",
+                    "virtualNetworkRules": [],
+                    "ipRules": [],
+                    "defaultAction": "Allow"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2023-12-01",
+            "name": "[variables('aspFunnAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "Y1",
+                "tier": "Dynamic",
+                "size": "Y1",
+                "family": "Y",
+                "capacity": 0
+            },
+            "kind": "functionapp",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2023-12-01",
+            "name": "[variables('functionAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S Corp",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "functionapp,linux",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                "[resourceId('Microsoft.Web/serverfarms', variables('aspFunnAppName'))]"
+            ],
+            "properties": {
+                "serverFarmId": "[variables('aspFunnAppName')]",
+                "httpsOnly": true,
+                "siteConfig": {
+                    "linuxFxVersion": "Node|20",
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(variables('functionAppName'))]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "node"
+                        },
+                        {
+                            "name": "WEBSITE_ENABLE_SYNC_UPDATE_SITE",
+                            "value": "false"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "~20"
+                        },
+                        {
+                            "name": "WEBSITE_RUN_FROM_PACKAGE",
+                            "value": "1"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}

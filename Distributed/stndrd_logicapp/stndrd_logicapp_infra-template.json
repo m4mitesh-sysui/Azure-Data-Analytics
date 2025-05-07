@@ -1,0 +1,561 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"vnetId": {
+			"defaultValue": "/subscriptions//resourceGroups/mit-dev-ade-rg/providers/Microsoft.Network/virtualNetworks/mit-dev-ade-vnet",
+			"type": "String"
+		},
+		"env": {
+			"type": "string"
+		},
+		"application": {
+			"type": "string"
+		},
+		"platform": {
+			"type": "string"
+		},
+		"location": {
+			"type": "string",
+			"defaultValue": "eastus2"
+		},
+		"appName": {
+			"type": "string"
+		},
+		"subnetNumber": {
+			"type": "string"
+		},
+		"subscriptionId": {
+			"type": "string"
+		}
+	},
+	"variables": {
+		"resourceGroupName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-rg')]",
+		"logicAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-', parameters('appName'))]",
+		"appSrvcName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-logic-asp')]",
+		"storageAccountName": "[concat('mit', parameters('env'), parameters('platform'), take(replace(parameters('appName'),'-', ''),10), 'st')]",
+		"adeWorkspaceName": "[concat('mit-', parameters('env'), '-ade-log')]",
+		"applicationInsightsName": "[concat('mit-', parameters('env'), '-ade-appi')]",
+		"managedIdentityName": "[concat('mit-', parameters('env'), '-ade-shared-mi')]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Storage/storageAccounts",
+			"apiVersion": "2023-05-01",
+			"sku": {
+				"name": "Standard_LRS",
+				"tier": "Standard"
+			},
+			"kind": "StorageV2",
+			"name": "[variables('storageAccountName')]",
+			"location": "[parameters('location')]",
+			"tags": {
+				"Business Unit": "MIT S CORP",
+				"application": "[parameters('application')]",
+				"environment": "[parameters('env')]",
+				"platform": "[parameters('platform')]"
+			},
+			"properties": {
+				"minimumTlsVersion": "TLS1_2",
+				"allowBlobPublicAccess": true,
+				"networkAcls": {
+					"bypass": "AzureServices",
+					"virtualNetworkRules": [],
+					"ipRules": [],
+					"defaultAction": "Allow"
+				},
+				"supportsHttpsTrafficOnly": true,
+				"encryption": {
+					"services": {
+						"file": {
+							"keyType": "Account",
+							"enabled": true
+						},
+						"blob": {
+							"keyType": "Account",
+							"enabled": true
+						}
+					},
+					"keySource": "Microsoft.Storage"
+				},
+				"accessTier": "Hot"
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/fileServices",
+			"apiVersion": "2023-01-01",
+			"name": "[concat(variables('storageAccountName'), '/default')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"shareDeleteRetentionPolicy": {
+					"enabled": true,
+					"days": 14
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/blobServices",
+			"apiVersion": "2023-05-01",
+			"name": "[concat(variables('storageAccountName'), '/default')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"sku": {
+				"name": "Standard_LRS",
+				"tier": "Standard"
+			},
+			"properties": {
+				"containerDeleteRetentionPolicy": {
+					"enabled": true,
+					"days": 14
+				},
+				"deleteRetentionPolicy": {
+					"allowPermanentDelete": false,
+					"enabled": true,
+					"days": 14
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('storageAccountName'), '/default/mit-sah-outbound')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]",
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"immutableStorageWithVersioning": {
+					"enabled": false
+				},
+				"defaultEncryptionScope": "$account-encryption-key",
+				"denyEncryptionScopeOverride": false,
+				"publicAccess": "None",
+				"shareDeleteRetentionPolicy": {
+					"enabled": true,
+					"days": 7
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites",
+			"apiVersion": "2022-09-01",
+			"name": "[variables('logicAppName')]",
+			"location": "[parameters('location')]",
+			"tags": {
+				"Business Unit": "MIT S CORP",
+				"application": "[parameters('application')]",
+				"environment": "[parameters('env')]",
+				"platform": "[parameters('platform')]"
+			},
+			"kind": "functionapp,workflowapp",
+			"identity": {
+				"type": "UserAssigned",
+				"userAssignedIdentities": {
+					"[concat('/subscriptions/', parameters('subscriptionId'), '/resourceGroups/mit-', parameters('env'), '-ade-rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/mit-', parameters('env'), '-ade-shared-mi')]": {}
+				}
+			},
+			"properties": {
+				"serverFarmId": "[variables('appSrvcName')]",
+				"vnetRouteAllEnabled": true,
+				"clientAffinityEnabled": false,
+				"virtualNetworkSubnetId": "[concat(parameters('vnetId'), '/subnets/mit-ade-logicapps-subnet', parameters('subnetNumber'))]",
+				"keyVaultReferenceIdentity": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.ManagedIdentity/userAssignedIdentities/',variables('managedIdentityName'))]",
+				"dependsOn": [
+					"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+				],
+				"siteConfig": {
+					"netFrameworkVersion": "v4.6",
+					"appSettings": [
+						{
+							"name": "APP_KIND",
+							"value": "workflowApp"
+						},
+						{
+							"name": "AzureFunctionsJobHost__extensionBundle__id",
+							"value": "Microsoft.Azure.Functions.ExtensionBundle.Workflows"
+						},
+						{
+							"name": "AzureFunctionsJobHost__extensionBundle__version",
+							"value": "(1.*, 2.0.0)"
+						},
+						{
+							"name": "AzureWebJobsStorage",
+							"value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',concat(listKeys(concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', variables('storageAccountName')),'2019-06-01').keys[0].value),';EndpointSuffix=core.windows.net')]"
+						},
+						{
+							"name": "FUNCTIONS_EXTENSION_VERSION",
+							"value": "~4"
+						},
+						{
+							"name": "FUNCTIONS_V2_COMPATIBILITY_MODE",
+							"value": "true"
+						},
+						{
+							"name": "FUNCTIONS_WORKER_RUNTIME",
+							"value": "node"
+						},
+						{
+							"name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+							"value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',concat(listKeys(concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', variables('storageAccountName')),'2019-06-01').keys[0].value),';EndpointSuffix=core.windows.net')]"
+						},
+						{
+							"name": "WEBSITE_CONTENTSHARE",
+							"value": "[variables('logicAppName')]"
+						},
+						{
+							"name": "WEBSITE_NODE_DEFAULT_VERSION",
+							"value": "~18"
+						},
+						{
+							"name": "WORKFLOWS_SUBSCRIPTION_ID",
+							"value": "[subscription().subscriptionId]"
+						},
+						{
+							"name": "WORKFLOWS_RESOURCE_GROUP_NAME",
+							"value": "[variables('resourceGroupName')]"
+						},
+						{
+							"name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+							"value": "[reference(resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').InstrumentationKey]"
+						},
+						{
+							"name": "VaultUri",
+							"value": "[concat('https://mit-', parameters('env'), '-', parameters('platform'), '-kv.vault.azure.net/')]"
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('logicAppName'), '/ftp')]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"tags": {
+				"Business Unit": "MIT S CORP",
+				"application": "[parameters('application')]",
+				"environment": "[parameters('env')]",
+				"platform": "[parameters('platform')]"
+			},
+			"properties": {
+				"allow": true
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/basicPublishingCredentialsPolicies",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('logicAppName'), '/scm')]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"tags": {
+				"Business Unit": "MIT S CORP",
+				"application": "[parameters('application')]",
+				"environment": "[parameters('env')]",
+				"platform": "[parameters('platform')]"
+			},
+			"properties": {
+				"allow": true
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/config",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('logicAppName'), '/web')]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"tags": {
+				"Business Unit": "MIT S CORP",
+				"application": "[parameters('application')]",
+				"environment": "[parameters('env')]",
+				"platform": "[parameters('platform')]"
+			},
+			"properties": {
+				"publishingUsername": "$mit-dev-sah-logic",
+				"scmType": "None",
+				"use32BitWorksahrocess": false,
+				"webSocketsEnabled": false,
+				"alwaysOn": false,
+				"managedPipelineMode": "Integrated",
+				"virtualApplications": [
+					{
+						"virtualPath": "/",
+						"physicalPath": "site\\wwwroot",
+						"preloadEnabled": false
+					}
+				],
+				"loadBalancing": "LeastRequests",
+				"experiments": {
+					"rampUpRules": []
+				},
+				"autoHealEnabled": false,
+				"vnetName": "[parameters('vnetId')]",
+				"vnetRouteAllEnabled": true,
+				"vnetPrivatePortsCount": 2,
+				"publicNetworkAccess": "Enabled",
+				"cors": {
+					"supportCredentials": false
+				},
+				"localMySqlEnabled": false,
+				"ipSecurityRestrictions": [
+					{
+						"ipAddress": "Any",
+						"action": "Allow",
+						"priority": 2332578654,
+						"name": "Allow all",
+						"description": "Allow all access"
+					}
+				],
+				"scmIpSecurityRestrictions": [
+					{
+						"ipAddress": "Any",
+						"action": "Allow",
+						"priority": 2332578654,
+						"name": "Allow all",
+						"description": "Allow all access"
+					}
+				],
+				"scmIpSecurityRestrictionsUseMain": false,
+				"http20Enabled": false
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/hostNameBindings",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('logicAppName'), '/', variables('logicAppName'), '.azurewebsites.net')]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"properties": {
+				"siteName": "[variables('logicAppName')]",
+				"hostNameType": "Verified"
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/virtualNetworkConnections",
+			"apiVersion": "2022-09-01",
+			"name": "[concat(variables('logicAppName'), '/mit-ade-logicapps-subnet', parameters('subnetNumber'))]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"properties": {
+				"vnetResourceId": "[concat(parameters('vnetId'), '/subnets/mit-ade-logicapps-subnet', parameters('subnetNumber'))]",
+				"isSwift": true
+			}
+		},
+		{
+			"type": "Microsoft.Web/sites/providers/diagnosticSettings",
+			"apiVersion": "2021-05-01-preview",
+			"name": "[concat(variables('logicAppName'),'/Microsoft.Insights/', variables('logicAppName'), '-log')]",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Web/sites', variables('logicAppName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"metrics": [
+					{
+						"category": "AllMetrics",
+						"enabled": true,
+						"retentionPolicy": {
+							"days": 0,
+							"enabled": false
+						},
+						"timeGrain": null
+					}
+				],
+				"logs": [
+					{
+						"category": "WorkflowRuntime",
+						"categoryGroup": null,
+						"enabled": true,
+						"retentionPolicy": {
+							"days": 0,
+							"enabled": false
+						}
+					},
+					{
+						"category": "FunctionAppLogs",
+						"categoryGroup": null,
+						"enabled": true,
+						"retentionPolicy": {
+							"days": 0,
+							"enabled": false
+						}
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Insights/diagnosticSettings",
+			"apiVersion": "2021-05-01-preview",
+			"scope": "[format('Microsoft.Storage/storageAccounts/{0}', variables('storageAccountName'))]",
+			"name": "[concat(variables('storageAccountName'), '-log')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"metrics": [
+					{
+						"category": "Transaction",
+						"enabled": true
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/blobServices/providers/diagnosticsettings",
+			"apiVersion": "2021-05-01-preview",
+			"name": "[concat(variables('storageAccountName'),'/default/Microsoft.Insights/', 'blob-log')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"logs": [
+					{
+						"category": "StorageRead",
+						"enabled": true
+					},
+					{
+						"category": "StorageWrite",
+						"enabled": true
+					},
+					{
+						"category": "StorageDelete",
+						"enabled": true
+					}
+				],
+				"metrics": [
+					{
+						"category": "Transaction",
+						"enabled": true
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/tableServices/providers/diagnosticsettings",
+			"apiVersion": "2021-05-01-preview",
+			"name": "[concat(variables('storageAccountName'),'/default/Microsoft.Insights/', 'table-log')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"logs": [
+					{
+						"category": "StorageRead",
+						"enabled": true
+					},
+					{
+						"category": "StorageWrite",
+						"enabled": true
+					},
+					{
+						"category": "StorageDelete",
+						"enabled": true
+					}
+				],
+				"metrics": [
+					{
+						"category": "Transaction",
+						"enabled": true
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/fileServices/providers/diagnosticsettings",
+			"apiVersion": "2021-05-01-preview",
+			"name": "[concat(variables('storageAccountName'),'/default/Microsoft.Insights/', 'file-log')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"logs": [
+					{
+						"category": "StorageRead",
+						"enabled": true
+					},
+					{
+						"category": "StorageWrite",
+						"enabled": true
+					},
+					{
+						"category": "StorageDelete",
+						"enabled": true
+					}
+				],
+				"metrics": [
+					{
+						"category": "Transaction",
+						"enabled": true
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Storage/storageAccounts/queueServices/providers/diagnosticsettings",
+			"apiVersion": "2021-05-01-preview",
+			"name": "[concat(variables('storageAccountName'),'/default/Microsoft.Insights/', 'queue-log')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+			],
+			"properties": {
+				"workspaceId": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.OperationalInsights/workspaces', variables('adeWorkspaceName'))]",
+				"logs": [
+					{
+						"category": "StorageRead",
+						"enabled": true
+					},
+					{
+						"category": "StorageWrite",
+						"enabled": true
+					},
+					{
+						"category": "StorageDelete",
+						"enabled": true
+					}
+				],
+				"metrics": [
+					{
+						"category": "Transaction",
+						"enabled": true
+					}
+				]
+			}
+		}
+	],
+	"outputs": {
+		"logicAppSystemAssignedIdentityTenantId": {
+			"type": "string",
+			"value": "[subscription().tenantid]"
+		},
+		"logicAppSystemAssignedIdentityObjectId": {
+			"type": "string",
+			"value": "[reference(resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.ManagedIdentity/userAssignedIdentities/',variables('managedIdentityName')),'2023-01-31', 'full').properties.principalId]"
+		},
+		"logicAppname": {
+			"type": "string",
+			"value": "[variables('logicAppName')]"
+		},
+		"logicAppStorageConnString": {
+			"type": "string",
+			"value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName'),';AccountKey=',concat(listKeys(concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', variables('storageAccountName')),'2019-06-01').keys[0].value),';EndpointSuffix=core.windows.net')]"
+		}
+	}
+}

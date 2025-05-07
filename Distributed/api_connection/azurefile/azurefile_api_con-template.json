@@ -1,0 +1,81 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "env": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "managedIdentityObjectId": {
+      "type": "string"
+    },
+    "managedIdentityTenantId": {
+      "type": "string"
+    },
+    "subscriptionId": {
+        "type": "securestring"
+    }
+  },
+  "variables": {
+    "azureFileShareConnectionName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-azurefile-con')]",
+    "managedIdentityName": "[concat('mit-++', parameters('env'), '-ade-shared-mi')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "[variables('azureFileShareConnectionName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "Business Unit": "MIT S Corp",
+        "environment": "[parameters('env')]",
+        "platform": "[parameters('platform')]"
+      },
+      "kind": "[parameters('kind')]",
+      "properties": {
+        "displayName": "[variables('azureFileShareConnectionName')]",
+        "customParameterValues": {},
+        "parameterValues": {
+          "accountName": "[parameters('storageAccountName')]",
+          "accessKey": "[concat(listKeys(concat(resourceGroup().id,'/providers/Microsoft.Storage/storageAccounts/', parameters('storageAccountName')),'2019-06-01').keys[0].value)]"
+        },
+        "api": {
+          "name": "azurefile",
+          "displayName": "Azure File Storage",
+          "description": "Microsoft Azure Storage provides a massively scalable, durable, and highly available storage for data on the cloud, and serves as the data storage solution for modern applications. Connect to File Storage to perform various operations such as create, update, get and delete on files in your Azure Storage account.",
+          "id": "[concat('/subscriptions/', parameters('subscriptionId'), '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/azurefile')]",
+          "type": "Microsoft.Web/locations/managedApis"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/connections/accessPolicies",
+      "apiVersion": "2016-06-01",
+      "name": "[concat(variables('azureFileShareConnectionName'),'/',variables('managedIdentityName'), '-', parameters('managedIdentityObjectId'))]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', variables('azureFileShareConnectionName'))]"
+      ],
+      "properties": {
+        "principal": {
+          "type": "ActiveDirectory",
+          "identity": {
+            "tenantId": "[parameters('managedIdentityTenantId')]",
+            "objectId": "[parameters('managedIdentityObjectId')]"
+          }
+        }
+      }
+    }
+  ]
+}

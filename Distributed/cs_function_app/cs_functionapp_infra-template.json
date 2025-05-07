@@ -1,0 +1,221 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vnetId": {
+            "defaultValue": "/subscriptions//resourceGroups/mit-dev-ade-rg/providers/Microsoft.Network/virtualNetworks/mit-dev-ade-vnet",
+            "type": "String"
+        },
+        "env": {
+            "type": "string"
+        },
+        "application": {
+            "type": "string"
+        },
+        "platform": {
+            "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "eastus2"
+        },
+        "ShipmentOracleConnectionString": {
+            "type": "string",
+            "defaultValue": "ShipmentOracleConnectionString"
+        },
+        "subnetNumber": {
+            "type": "string"
+        },
+        "kind": {
+            "type": "string"
+        },
+        "skuName": {
+            "type": "string"
+        },
+        "tier": {
+            "type": "string"
+        },
+        "TlsVersion": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "functionAppName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-cs-func')]",
+        "appSrvcName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-csfunction-asp')]",
+        "storageAccountName": "[concat('mit', parameters('env'), parameters('platform'),  'csfuncappst')]",
+        "keyVaultName": "[concat('mit-', parameters('env'), '-', parameters('platform'), '-kv')]",
+        "applicationInsightsName": "[concat('mit-', parameters('env'), '-ade-appi')]",
+        "managedIdentityName": "[concat('mit-', parameters('env'), '-ade-shared-mi')]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('storageAccountName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('tier')]"
+            },
+            "kind": "[parameters('kind')]",
+            "properties": {
+                "supportsHttpsTrafficOnly": true,
+                "defaultToOAuthAuthentication": true,
+                "minimumTlsVersion": "[parameters('TlsVersion')]"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2023-01-01",
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "containerDeleteRetentionPolicy": {
+                    "enabled": true,
+                    "days": 14
+                },
+                "deleteRetentionPolicy": {
+                    "allowPermanentDelete": false,
+                    "enabled": true,
+                    "days": 14
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/fileServices",
+            "apiVersion": "2023-01-01",
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "shareDeleteRetentionPolicy": {
+                    "enabled": true,
+                    "days": 14
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2022-09-01",
+            "name": "[variables('appSrvcName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "sku": {
+                "name": "B1",
+                "tier": "Basic",
+                "size": "B1",
+                "family": "B",
+                "capacity": 1
+            },
+            "kind": "linux",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('functionAppName')]",
+            "location": "[parameters('location')]",
+            "tags": {
+                "Business Unit": "MIT S CORP",
+                "application": "[parameters('application')]",
+                "environment": "[parameters('env')]",
+                "platform": "[parameters('platform')]"
+            },
+            "kind": "functionapp",
+            "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                    "[resourceID(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.ManagedIdentity/userAssignedIdentities/',variables('managedIdentityName'))]": {}
+                }
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appSrvcName'))]",
+                "vnetRouteAllEnabled": true,
+                "virtualNetworkSubnetId": "[concat(parameters('vnetId'), '/subnets/mit-ade-functions-subnet', parameters('subnetNumber'))]",
+                "keyVaultReferenceIdentity": "[resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.ManagedIdentity/userAssignedIdentities/',variables('managedIdentityName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                            "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', variables('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2022-05-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "WEBSITE_CONTENTSHARE",
+                            "value": "[toLower(variables('functionAppName'))]"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                            "value": "~14"
+                        },
+                        {
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[reference(resourceId(concat('mit-', parameters('env'), '-ade-rg'), 'Microsoft.Insights/components', variables('applicationInsightsName')), '2020-02-02').ConnectionString]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "dotnet-isolated"
+                        },
+                        {
+                            "name": "ShipmentOracleConnectionString",
+                            "value": "[concat('@Microsoft.KeyVault(VaultName=', variables('keyVaultName'), ';SecretName=', parameters('ShipmentOracleConnectionString'), ')')]"
+                        }
+                    ],
+                    "ftpsState": "FtpsOnly",
+                    "minTlsVersion": "1.2",
+                    "linuxFxVersion": "DOTNET-ISOLATED|8.0"
+                },
+                "httpsOnly": true
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+                "[resourceId('Microsoft.Web/serverfarms', variables('appSrvcName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.Web/sites/virtualNetworkConnections",
+            "apiVersion": "2022-09-01",
+            "name": "[concat(variables('functionAppName'), '/mit-ade-functions-subnet', parameters('subnetNumber'))]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+            ],
+            "properties": {
+                "vnetResourceId": "[concat(parameters('vnetId'), '/subnets/mit-ade-functions-subnet', parameters('subnetNumber'))]",
+                "isSwift": true
+            }
+        }
+    ]
+}
